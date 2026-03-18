@@ -873,39 +873,11 @@ async function requestPermissions(): Promise<void> {
     log(`Permission preflight: microphone check failed — ${err.message}`)
   }
 
-  // ── Screen Recording (for screenshot attachment) ──
-  // macOS cannot be prompted programmatically — we show a one-time native dialog
-  // that deep-links to System Settings. A flag file persists the dismissal so
-  // "Skip for Now" is respected on subsequent launches.
-  try {
-    const screenStatus = systemPreferences.getMediaAccessStatus('screen')
-    if (screenStatus === 'not-determined' || screenStatus === 'denied') {
-      const { existsSync: fe, writeFileSync: wf } = require('fs')
-      const flagFile = join(app.getPath('userData'), 'screen-permission-prompted')
-      if (!fe(flagFile)) {
-        const { response } = await dialog.showMessageBox({
-          type: 'information',
-          title: 'Screen Recording Permission',
-          message: 'Clui CC needs Screen Recording access to take screenshots.',
-          detail: 'Click "Open Settings" to grant access, then relaunch the app.\n\nYou only need to do this once.',
-          buttons: ['Open Settings', 'Skip for Now'],
-          defaultId: 0,
-          cancelId: 1,
-        })
-        // Write flag regardless of choice — if they opened settings and granted,
-        // the next launch will see screenStatus === 'granted' and skip this block.
-        wf(flagFile, '')
-        if (response === 0) {
-          shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
-        }
-      }
-    }
-  } catch (err: any) {
-    log(`Permission preflight: screen check failed — ${err.message}`)
-  }
-
   // ── Accessibility (for global ⌥+Space shortcut) ──
   // globalShortcut works without it on modern macOS; Cmd+Shift+K is always the fallback.
+  // Screen Recording: not requested upfront — macOS 15 Sequoia shows an alarming
+  // "bypass private window picker" dialog. Let the OS prompt naturally if/when
+  // the screenshot feature is actually used.
 }
 
 // ─── App Lifecycle ───
