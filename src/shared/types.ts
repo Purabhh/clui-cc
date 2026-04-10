@@ -170,6 +170,8 @@ export interface TabState {
   hasChosenDirectory: boolean
   /** Extra directories accessible via --add-dir (session-preserving) */
   additionalDirs: string[]
+  /** Whether this tab is pinned (cannot be closed, sorted first) */
+  pinned: boolean
 }
 
 export interface Message {
@@ -294,6 +296,16 @@ export interface CatalogPlugin {
   isSkillMd: boolean      // true = individual SKILL.md (direct install), false = CLI plugin (bundle install)
 }
 
+// ─── Window Placement ───
+
+export type WindowPlacement =
+  | 'bottom-center'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'top-center'
+  | 'top-left'
+  | 'top-right'
+
 // ─── IPC Channel Names ───
 
 export const IPC = {
@@ -343,6 +355,7 @@ export const IPC = {
   START_WINDOW_DRAG: 'clui:start-window-drag',
   RESET_WINDOW_POSITION: 'clui:reset-window-position',
   IS_VISIBLE: 'clui:is-visible',
+  SET_PLACEMENT: 'clui:set-placement',
 
   // Skill provisioning (main → renderer)
   SKILL_STATUS: 'clui:skill-status',

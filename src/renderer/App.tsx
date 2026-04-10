@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef } from 'react'
+import React, { useEffect, useCallback, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Paperclip, Camera, HeadCircuit } from '@phosphor-icons/react'
 import { TabStrip } from './components/TabStrip'
@@ -26,6 +26,12 @@ export default function App() {
 
   // ─── Theme initialization ───
   useEffect(() => {
+    // Send persisted placement to main process so the window starts in the right position
+    const savedPlacement = useThemeStore.getState().placement
+    if (savedPlacement !== 'bottom-center') {
+      window.clui.setPlacement?.(savedPlacement)
+    }
+
     // Get initial OS theme — setSystemTheme respects themeMode (system/light/dark)
     window.clui.getTheme().then(({ isDark }) => {
       setSystemTheme(isDark)
@@ -185,6 +191,7 @@ export default function App() {
 
   const isExpanded = useSessionStore((s) => s.isExpanded)
   const marketplaceOpen = useSessionStore((s) => s.marketplaceOpen)
+  const placement = useThemeStore((s) => s.placement)
   const isRunning = activeTabStatus === 'running' || activeTabStatus === 'connecting'
 
   // Layout dimensions — expandedUI widens and heightens the panel
@@ -193,6 +200,47 @@ export default function App() {
   const cardCollapsedWidth = expandedUI ? 670 : 430
   const cardCollapsedMargin = expandedUI ? 15 : 15
   const bodyMaxHeight = expandedUI ? 520 : 400
+
+  // Placement-driven layout
+  const isTop = placement.startsWith('top')
+  const isLeft = placement.includes('left')
+  const isRight = placement.includes('right')
+  const hAlign: 'flex-start' | 'center' | 'flex-end' = isLeft ? 'flex-start' : isRight ? 'flex-end' : 'center'
+
+  // ─── Drag-to-resize ───
+  const resizedHeight = useThemeStore((s) => s.resizedHeight)
+  const setResizedHeight = useThemeStore((s) => s.setResizedHeight)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartRef = useRef<{ y: number; startHeight: number } | null>(null)
+
+  const effectiveBodyMaxHeight = resizedHeight ?? bodyMaxHeight
+
+  const handleResizeStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startHeight = resizedHeight ?? bodyMaxHeight
+    dragStartRef.current = { y: e.clientY, startHeight }
+    setIsDragging(true)
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragStartRef.current) return
+      const delta = isTop
+        ? ev.clientY - dragStartRef.current.y
+        : dragStartRef.current.y - ev.clientY
+      const newHeight = Math.max(150, Math.min(600, dragStartRef.current.startHeight + delta))
+      setResizedHeight(newHeight)
+    }
+
+    const onUp = () => {
+      dragStartRef.current = null
+      setIsDragging(false)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+    }
+
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+  }, [isTop, resizedHeight, bodyMaxHeight, setResizedHeight])
 
   const handleScreenshot = useCallback(async () => {
     const result = await window.clui.takeScreenshot()
@@ -208,10 +256,18 @@ export default function App() {
 
   return (
     <PopoverLayerProvider>
-      <div className="flex flex-col justify-end h-full" style={{ background: 'transparent' }}>
+      <div
+        className="flex h-full"
+        style={{
+          background: 'transparent',
+          flexDirection: isTop ? 'column' : 'column',
+          justifyContent: isTop ? 'flex-start' : 'flex-end',
+          alignItems: hAlign,
+        }}
+      >
 
         {/* ─── 460px content column, centered. Circles overflow left. ─── */}
-        <div style={{ width: contentWidth, position: 'relative', margin: '0 auto', transition: 'width 0.26s cubic-bezier(0.4, 0, 0.1, 1)', transform: 'translateY(var(--clui-card-y, 0px))' }}>
+        <div style={{ width: contentWidth, position: 'relative', margin: '0 auto', transition: 'width 0.26s cubic-bezier(0.4, 0, 0.1, 1)', transform: 'translateY(var(--clui-card-y, 0px))', display: 'flex', flexDirection: 'column' }}>
 
           <AnimatePresence initial={false}>
             {marketplaceOpen && (
@@ -222,15 +278,16 @@ export default function App() {
                   maxWidth: 720,
                   marginLeft: '50%',
                   transform: 'translateX(-50%)',
-                  marginBottom: 14,
+                  ...(isTop ? { marginTop: 14 } : { marginBottom: 14 }),
                   position: 'relative',
                   zIndex: 30,
+                  order: isTop ? 3 : 0,
                 }}
               >
                 <motion.div
-                  initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                  initial={{ opacity: 0, y: isTop ? -14 : 14, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.985 }}
+                  exit={{ opacity: 0, y: isTop ? -10 : 10, scale: 0.985 }}
                   transition={TRANSITION}
                 >
                   <div
@@ -251,14 +308,16 @@ export default function App() {
           {/*
             ─── Tabs / message shell ───
             This always remains the chat shell. The marketplace is a separate
-            panel rendered above it, never inside it.
+            panel rendered above/below it, never inside it.
           */}
           <motion.div
             data-clui-ui
             className="overflow-hidden flex flex-col drag-region"
             animate={{
               width: isExpanded ? cardExpandedWidth : cardCollapsedWidth,
-              marginBottom: isExpanded ? 10 : -14,
+              ...(isTop
+                ? { marginTop: isExpanded ? 10 : -14 }
+                : { marginBottom: isExpanded ? 10 : -14 }),
               marginLeft: isExpanded ? 0 : cardCollapsedMargin,
               marginRight: isExpanded ? 0 : cardCollapsedMargin,
               background: isExpanded ? colors.containerBg : colors.containerBgCollapsed,
@@ -272,14 +331,35 @@ export default function App() {
               borderRadius: 20,
               position: 'relative',
               zIndex: isExpanded ? 20 : 10,
+              order: isTop ? 2 : 1,
             }}
           >
+            {/* Resize handle — top of card for bottom-* placements */}
+            {!isTop && isExpanded && (
+              <div
+                data-clui-ui
+                className="no-drag flex justify-center items-center"
+                style={{ height: 10, cursor: 'ns-resize', flexShrink: 0 }}
+                onPointerDown={handleResizeStart}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 3,
+                    borderRadius: 2,
+                    background: isDragging ? colors.accent : colors.containerBorder,
+                    transition: isDragging ? 'none' : 'background 0.15s',
+                  }}
+                />
+              </div>
+            )}
+
             {/* Tab strip — always mounted */}
             <div className="no-drag">
               <TabStrip />
             </div>
 
-            {/* Body — chat history only; the marketplace is a separate overlay above */}
+            {/* Body — chat history only */}
             <motion.div
               initial={false}
               animate={{
@@ -289,16 +369,44 @@ export default function App() {
               transition={TRANSITION}
               className="overflow-hidden no-drag"
             >
-              <div style={{ maxHeight: bodyMaxHeight }}>
+              <div style={{ maxHeight: effectiveBodyMaxHeight }}>
                 <ConversationView />
                 <StatusBar />
               </div>
             </motion.div>
+
+            {/* Resize handle — bottom of card for top-* placements */}
+            {isTop && isExpanded && (
+              <div
+                data-clui-ui
+                className="no-drag flex justify-center items-center"
+                style={{ height: 10, cursor: 'ns-resize', flexShrink: 0 }}
+                onPointerDown={handleResizeStart}
+              >
+                <div
+                  style={{
+                    width: 32,
+                    height: 3,
+                    borderRadius: 2,
+                    background: isDragging ? colors.accent : colors.containerBorder,
+                    transition: isDragging ? 'none' : 'background 0.15s',
+                  }}
+                />
+              </div>
+            )}
           </motion.div>
 
           {/* ─── Input row — circles float outside left ─── */}
-          {/* marginBottom: shadow buffer so the glass-surface drop shadow isn't clipped at the native window edge */}
-          <div data-clui-ui className="relative" style={{ minHeight: 46, zIndex: 15, marginBottom: 10 }}>
+          <div
+            data-clui-ui
+            className="relative"
+            style={{
+              minHeight: 46,
+              zIndex: 15,
+              ...(isTop ? { marginTop: 10 } : { marginBottom: 10 }),
+              order: isTop ? 1 : 2,
+            }}
+          >
             {/* Stacked circle buttons — expand on hover */}
             <div
               data-clui-ui

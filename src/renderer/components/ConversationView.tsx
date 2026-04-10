@@ -555,6 +555,40 @@ function ImageCard({ src, alt, colors }: { src?: string; alt?: string; colors: R
   )
 }
 
+// ─── Code Block Wrapper (copy button on hover) ───
+
+function CodeBlockWrapper({ children, colors }: { children: React.ReactNode; colors: ReturnType<typeof useColors> }) {
+  const preRef = useRef<HTMLPreElement>(null)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    const text = preRef.current?.textContent || ''
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {}
+  }
+
+  return (
+    <div className="group/code relative">
+      <pre ref={preRef}>{children}</pre>
+      <button
+        onClick={handleCopy}
+        className="absolute top-1.5 right-1.5 opacity-0 group-hover/code:opacity-100 transition-opacity duration-100 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] cursor-pointer"
+        style={{
+          background: copied ? colors.statusCompleteBg : colors.surfacePrimary,
+          color: copied ? colors.statusComplete : colors.textTertiary,
+          border: `1px solid ${colors.toolBorder}`,
+        }}
+      >
+        {copied ? <Check size={11} /> : <Copy size={11} />}
+        <span>{copied ? 'Copied' : 'Copy'}</span>
+      </button>
+    </div>
+  )
+}
+
 // ─── Assistant Message (memoized — only re-renders when content changes) ───
 
 const AssistantMessage = React.memo(function AssistantMessage({
@@ -581,6 +615,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
       </button>
     ),
     img: ({ src, alt }: any) => <ImageCard src={src} alt={alt} colors={colors} />,
+    pre: ({ children }: any) => <CodeBlockWrapper colors={colors}>{children}</CodeBlockWrapper>,
   }), [colors])
 
   const inner = (

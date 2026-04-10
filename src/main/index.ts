@@ -9,7 +9,7 @@ import { fetchCatalog, listInstalled, installPlugin, uninstallPlugin } from './m
 import { log as _log, LOG_FILE, flushLogs } from './logger'
 import { getCliEnv } from './cli-env'
 import { IPC } from '../shared/types'
-import type { RunOptions, NormalizedEvent, EnrichedError } from '../shared/types'
+import type { RunOptions, NormalizedEvent, EnrichedError, WindowPlacement } from '../shared/types'
 
 const DEBUG_MODE = process.env.CLUI_DEBUG === '1'
 const SPACES_DEBUG = DEBUG_MODE || process.env.CLUI_SPACES_DEBUG === '1'
@@ -69,6 +69,35 @@ const controlPlane = new ControlPlane(INTERACTIVE_PTY)
 const BAR_WIDTH = 1040
 const PILL_HEIGHT = 720  // Fixed native window height — extra room for expanded UI + shadow buffers
 const PILL_BOTTOM_MARGIN = 24
+
+// ─── Placement-aware positioning ───
+
+function computeBounds(placement: WindowPlacement, display: Electron.Display): { x: number; y: number; width: number; height: number } {
+  const { width: sw, height: sh } = display.workAreaSize
+  const { x: dx, y: dy } = display.workArea
+  const margin = PILL_BOTTOM_MARGIN
+
+  let x: number
+  let y: number
+
+  // Horizontal
+  if (placement.includes('left')) {
+    x = dx + margin
+  } else if (placement.includes('right')) {
+    x = dx + sw - BAR_WIDTH - margin
+  } else {
+    x = dx + Math.round((sw - BAR_WIDTH) / 2)
+  }
+
+  // Vertical
+  if (placement.startsWith('top')) {
+    y = dy + margin
+  } else {
+    y = dy + sh - PILL_HEIGHT - margin
+  }
+
+  return { x, y, width: BAR_WIDTH, height: PILL_HEIGHT }
+}
 
 // ─── Broadcast to renderer ───
 
@@ -131,17 +160,10 @@ controlPlane.on('error', (tabId: string, error: EnrichedError) => {
 function createWindow(): void {
   const cursor = screen.getCursorScreenPoint()
   const display = screen.getDisplayNearestPoint(cursor)
-  const { width: screenWidth, height: screenHeight } = display.workAreaSize
-  const { x: dx, y: dy } = display.workArea
-
-  const x = dx + Math.round((screenWidth - BAR_WIDTH) / 2)
-  const y = dy + screenHeight - PILL_HEIGHT - PILL_BOTTOM_MARGIN
+  const bounds = computeBounds(currentPlacement, display)
 
   mainWindow = new BrowserWindow({
-    width: BAR_WIDTH,
-    height: PILL_HEIGHT,
-    x,
-    y,
+    ...bounds,
     ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),  // NSPanel — non-activating, joins all spaces
     frame: false,
     transparent: true,
@@ -285,6 +307,14 @@ ipcMain.on(IPC.HIDE_WINDOW, () => {
 
 ipcMain.handle(IPC.IS_VISIBLE, () => {
   return mainWindow?.isVisible() ?? false
+})
+
+ipcMain.on(IPC.SET_PLACEMENT, (_event, placement: WindowPlacement) => {
+  currentPlacement = placement
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const cursor = screen.getCursorScreenPoint()
+  const display = screen.getDisplayNearestPoint(cursor)
+  mainWindow.setBounds(computeBounds(placement, display))
 })
 
 // OS-level click-through toggle — renderer calls this on mousemove
@@ -1089,12 +1119,10 @@ async function requestPermissions(): Promise<void> {
 // ─── App Lifecycle ───
 
 app.whenReady().then(async () => {
-  // macOS: become an accessory app. Accessory apps can have key windows (keyboard works)
-  // without deactivating the currently active app (hover preserved in browsers).
-  // This is how Spotlight, Alfred, Raycast work.
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.hide()
-  }
+  // macOS: keep dock icon visible so the app can be pinned
+  // if (process.platform === 'darwin' && app.dock) {
+  //   app.dock.hide()
+  // }
 
   // Request permissions upfront so the user is never interrupted mid-session.
   await requestPermissions()

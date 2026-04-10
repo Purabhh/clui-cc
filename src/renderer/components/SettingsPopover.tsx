@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { DotsThree, Bell, ArrowsOutSimple, Moon } from '@phosphor-icons/react'
+import { DotsThree, Bell, ArrowsOutSimple, Moon, CornersOut, Keyboard } from '@phosphor-icons/react'
 import { useThemeStore } from '../theme'
+import type { WindowPlacement } from '../../shared/types'
 import { useSessionStore } from '../stores/sessionStore'
 import { usePopoverLayer } from './PopoverLayer'
 import { useColors } from '../theme'
@@ -41,6 +42,47 @@ function RowToggle({
   )
 }
 
+/* ─── Placement grid ─── */
+
+const PLACEMENTS: WindowPlacement[][] = [
+  ['top-left', 'top-center', 'top-right'],
+  ['bottom-left', 'bottom-center', 'bottom-right'],
+]
+
+function PlacementGrid({
+  value,
+  onChange,
+  colors,
+}: {
+  value: WindowPlacement
+  onChange: (p: WindowPlacement) => void
+  colors: ReturnType<typeof useColors>
+}) {
+  return (
+    <div className="flex flex-col gap-1" style={{ width: 54 }}>
+      {PLACEMENTS.map((row, ri) => (
+        <div key={ri} className="flex gap-1 justify-between">
+          {row.map((p) => (
+            <button
+              key={p}
+              type="button"
+              title={p}
+              onClick={() => onChange(p)}
+              className="rounded-sm transition-colors"
+              style={{
+                width: 14,
+                height: 10,
+                background: p === value ? colors.accent : colors.surfaceSecondary,
+                border: `1px solid ${p === value ? colors.accent : colors.containerBorder}`,
+              }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* ─── Settings popover ─── */
 
 export function SettingsPopover() {
@@ -50,6 +92,8 @@ export function SettingsPopover() {
   const setThemeMode = useThemeStore((s) => s.setThemeMode)
   const expandedUI = useThemeStore((s) => s.expandedUI)
   const setExpandedUI = useThemeStore((s) => s.setExpandedUI)
+  const placement = useThemeStore((s) => s.placement)
+  const setPlacement = useThemeStore((s) => s.setPlacement)
   const isExpanded = useSessionStore((s) => s.isExpanded)
   const popoverLayer = usePopoverLayer()
   const colors = useColors()
@@ -184,6 +228,21 @@ export function SettingsPopover() {
 
             <div style={{ height: 1, background: colors.popoverBorder }} />
 
+            {/* Window placement */}
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CornersOut size={14} style={{ color: colors.textTertiary }} />
+                  <div className="text-[12px] font-medium" style={{ color: colors.textPrimary }}>
+                    Position
+                  </div>
+                </div>
+                <PlacementGrid value={placement} onChange={setPlacement} colors={colors} />
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: colors.popoverBorder }} />
+
             {/* Notification sound */}
             <div>
               <div className="flex items-center justify-between gap-3">
@@ -219,6 +278,37 @@ export function SettingsPopover() {
                   colors={colors}
                   label="Toggle dark theme"
                 />
+              </div>
+            </div>
+
+            <div style={{ height: 1, background: colors.popoverBorder }} />
+
+            {/* Keyboard shortcuts */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Keyboard size={14} style={{ color: colors.textTertiary }} />
+                <div className="text-[12px] font-medium" style={{ color: colors.textPrimary }}>
+                  Shortcuts
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {([
+                  ['Toggle overlay', '⌥ Space'],
+                  ['Send message', '↵ Enter'],
+                  ['New line', '⇧ Enter'],
+                  ['Hide window', 'Esc'],
+                  ['Slash commands', '/'],
+                ] as const).map(([action, keys]) => (
+                  <div key={action} className="flex items-center justify-between text-[11px]">
+                    <span style={{ color: colors.textSecondary }}>{action}</span>
+                    <kbd
+                      className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+                      style={{ background: colors.surfaceHover, color: colors.textTertiary, border: `1px solid ${colors.containerBorder}` }}
+                    >
+                      {keys}
+                    </kbd>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

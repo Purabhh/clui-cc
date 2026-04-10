@@ -77,6 +77,7 @@ interface State {
   setPermissionMode: (mode: 'ask' | 'auto') => void
   createTab: () => Promise<string>
   selectTab: (tabId: string) => void
+  togglePinTab: (tabId: string) => void
   closeTab: (tabId: string) => void
   clearTab: () => void
   toggleExpanded: () => void
@@ -144,6 +145,7 @@ function makeLocalTab(): TabState {
     workingDirectory: '~',
     hasChosenDirectory: false,
     additionalDirs: [],
+    pinned: false,
   }
 }
 
@@ -347,10 +349,24 @@ export const useSessionStore = create<State>((set, get) => ({
     }, 100)
   },
 
-  closeTab: (tabId) => {
-    window.clui.closeTab(tabId).catch(() => {})
+  togglePinTab: (tabId) => {
+    set((s) => {
+      const updated = s.tabs.map((t) =>
+        t.id === tabId ? { ...t, pinned: !t.pinned } : t
+      )
+      // Sort: pinned tabs first, preserve relative order within each group
+      const pinned = updated.filter((t) => t.pinned)
+      const unpinned = updated.filter((t) => !t.pinned)
+      return { tabs: [...pinned, ...unpinned] }
+    })
+  },
 
+  closeTab: (tabId) => {
     const s = get()
+    const tab = s.tabs.find((t) => t.id === tabId)
+    if (tab?.pinned) return // Cannot close pinned tabs
+
+    window.clui.closeTab(tabId).catch(() => {})
     const remaining = s.tabs.filter((t) => t.id !== tabId)
 
     if (s.activeTabId === tabId) {

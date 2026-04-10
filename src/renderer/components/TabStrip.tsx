@@ -1,9 +1,10 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, X } from '@phosphor-icons/react'
+import { Plus, X, PushPin } from '@phosphor-icons/react'
 import { useSessionStore } from '../stores/sessionStore'
 import { HistoryPicker } from './HistoryPicker'
 import { SettingsPopover } from './SettingsPopover'
+import { SlideCloseButton } from './SlideCloseButton'
 import { useColors } from '../theme'
 import type { TabStatus } from '../../shared/types'
 
@@ -42,6 +43,7 @@ export function TabStrip() {
   const selectTab = useSessionStore((s) => s.selectTab)
   const createTab = useSessionStore((s) => s.createTab)
   const closeTab = useSessionStore((s) => s.closeTab)
+  const togglePinTab = useSessionStore((s) => s.togglePinTab)
   const colors = useColors()
 
   return (
@@ -50,6 +52,11 @@ export function TabStrip() {
       className="flex items-center no-drag"
       style={{ padding: '8px 0' }}
     >
+      {/* Slide-to-close button */}
+      <div className="flex-shrink-0 pl-2.5 pr-1 flex items-center">
+        <SlideCloseButton />
+      </div>
+
       {/* Scrollable tabs area — clipped by master card edge */}
       <div className="relative min-w-0 flex-1">
         <div
@@ -90,9 +97,23 @@ export function TabStrip() {
                 >
                   <StatusDot status={tab.status} hasUnread={tab.hasUnread} hasPermission={tab.permissionQueue.length > 0} />
                   <span className="truncate flex-1">{tab.title}</span>
-                  {tabs.length > 1 && (
+                  {tab.pinned ? (
                     <button
-                      onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
+                      onClick={(e) => { e.stopPropagation(); togglePinTab(tab.id) }}
+                      className="flex-shrink-0 rounded-full w-4 h-4 flex items-center justify-center transition-opacity"
+                      style={{
+                        opacity: isActive ? 0.7 : 0.4,
+                        color: colors.accent,
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = isActive ? '0.7' : '0.4' }}
+                      title="Unpin tab"
+                    >
+                      <PushPin size={10} weight="fill" />
+                    </button>
+                  ) : tabs.length > 1 && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); isActive ? togglePinTab(tab.id) : closeTab(tab.id) }}
                       className="flex-shrink-0 rounded-full w-4 h-4 flex items-center justify-center transition-opacity"
                       style={{
                         opacity: isActive ? 0.5 : 0,
@@ -100,8 +121,9 @@ export function TabStrip() {
                       }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = isActive ? '0.5' : '0' }}
+                      title={isActive ? 'Pin tab' : 'Close tab'}
                     >
-                      <X size={10} />
+                      {isActive ? <PushPin size={10} /> : <X size={10} />}
                     </button>
                   )}
                 </motion.div>

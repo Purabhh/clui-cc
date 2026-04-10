@@ -22,6 +22,13 @@ export function InputBar() {
   const [input, setInput] = useState('')
   const [voiceState, setVoiceState] = useState<VoiceState>('idle')
   const [voiceError, setVoiceError] = useState<string | null>(null)
+
+  // Auto-fade voice errors after 5 seconds
+  useEffect(() => {
+    if (!voiceError) return
+    const timer = setTimeout(() => setVoiceError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [voiceError])
   const [slashFilter, setSlashFilter] = useState<string | null>(null)
   const [slashIndex, setSlashIndex] = useState(0)
   const [isMultiLine, setIsMultiLine] = useState(false)

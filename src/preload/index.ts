@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/types'
-import type { RunOptions, NormalizedEvent, HealthReport, EnrichedError, Attachment, SessionMeta, CatalogPlugin, SessionLoadMessage } from '../shared/types'
+import type { RunOptions, NormalizedEvent, HealthReport, EnrichedError, Attachment, SessionMeta, CatalogPlugin, SessionLoadMessage, WindowPlacement } from '../shared/types'
 
 export interface CluiAPI {
   // ─── Request-response (renderer → main) ───
@@ -46,6 +46,7 @@ export interface CluiAPI {
   startWindowDrag(deltaX: number, deltaY: number): void
   /** Reset overlay to its default bottom-center position */
   resetWindowPosition(): void
+  setPlacement(placement: WindowPlacement): void
 
   // ─── Event listeners (main → renderer) ───
   onEvent(callback: (tabId: string, event: NormalizedEvent) => void): () => void
@@ -106,6 +107,7 @@ const api: CluiAPI = {
     ipcRenderer.send(IPC.START_WINDOW_DRAG, deltaX, deltaY),
   resetWindowPosition: () => ipcRenderer.send(IPC.RESET_WINDOW_POSITION),
   setWindowWidth: (width) => ipcRenderer.send(IPC.SET_WINDOW_WIDTH, width),
+  setPlacement: (placement) => ipcRenderer.send(IPC.SET_PLACEMENT, placement),
 
   // ─── Event listeners ───
   onEvent: (callback) => {
