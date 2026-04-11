@@ -78,6 +78,7 @@ interface State {
   createTab: () => Promise<string>
   selectTab: (tabId: string) => void
   togglePinTab: (tabId: string) => void
+  reorderTabs: (reordered: TabState[]) => void
   closeTab: (tabId: string) => void
   clearTab: () => void
   toggleExpanded: () => void
@@ -359,6 +360,13 @@ export const useSessionStore = create<State>((set, get) => ({
       const unpinned = updated.filter((t) => !t.pinned)
       return { tabs: [...pinned, ...unpinned] }
     })
+  },
+
+  reorderTabs: (reordered) => {
+    // Enforce constraint: unpinned tabs cannot precede pinned tabs
+    const pinned = reordered.filter((t) => t.pinned)
+    const unpinned = reordered.filter((t) => !t.pinned)
+    set({ tabs: [...pinned, ...unpinned] })
   },
 
   closeTab: (tabId) => {

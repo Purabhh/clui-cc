@@ -70,6 +70,8 @@ const BAR_WIDTH = 1040
 const PILL_HEIGHT = 720  // Fixed native window height — extra room for expanded UI + shadow buffers
 const PILL_BOTTOM_MARGIN = 24
 
+let currentPlacement: WindowPlacement = 'bottom-center'
+
 // ─── Placement-aware positioning ───
 
 function computeBounds(placement: WindowPlacement, display: Electron.Display): { x: number; y: number; width: number; height: number } {
